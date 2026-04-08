@@ -1,0 +1,27 @@
+# Gold Monitor Docker Compose 编排
+version: '3.8'
+
+services:
+  gold-monitor:
+    build: .
+    container_name: gold-monitor
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # 持久化数据文件
+      - ./data:/app/data
+      - ./chroma_data:/app/chroma_data
+      - ./logs:/app/logs
+      # 挂载配置文件（可选，方便修改）
+      - ./config.yaml:/app/config.yaml:ro
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/api/status')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

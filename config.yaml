@@ -1,0 +1,98 @@
+# ======================================
+# Gold Monitor 主配置文件
+# ======================================
+
+# AI 分析配置
+ai:
+  # 当前使用的 AI 提供商：qwen / openai
+  provider: qwen
+  # 通义千问模型名称
+  qwen_model: qwen-turbo
+  # OpenAI 模型名称
+  openai_model: gpt-4o-mini
+  # AI 调用最大重试次数
+  max_retries: 3
+  # 重试基础等待时间（秒）
+  retry_base_delay: 2
+
+# 新闻采集配置
+collector:
+  # 采集间隔（分钟）
+  interval_minutes: 30
+  # 并行采集线程数
+  max_workers: 5
+  # 单次请求超时（秒）
+  request_timeout: 15
+  # 启用的新闻源列表
+  enabled_sources:
+    - sina_finance
+    - jin10
+    - rss_gold
+
+# 金价监控配置
+price_monitor:
+  # 价格检查间隔（分钟）
+  interval_minutes: 5
+  # 缓存过期时间（秒）
+  cache_ttl: 300
+
+# 分析与通知配置
+analysis:
+  # 触发通知的最低置信率阈值（0-100）
+  confidence_threshold: 70
+  # 事件影响等级筛选（仅 high/medium 级别的事件会触发通知）
+  notify_impact_levels:
+    - high
+    - medium
+
+# 通知配置
+notification:
+  # 启用的通知渠道：feishu / wecom / dingtalk
+  enabled_channels:
+    - feishu
+  # 通知发送失败重试次数
+  max_retries: 3
+
+# 每日总结配置
+daily_summary:
+  # 每日总结触发时间（24小时制）
+  hour: 20
+  minute: 0
+  # 总结分析的维度
+  dimensions:
+    - geopolitical      # 地缘政治
+    - economic_data     # 经济数据
+    - central_bank      # 央行政策
+    - usd_trend         # 美元走势
+    - market_sentiment  # 市场情绪
+    - technical         # 技术面
+
+# 知识库配置
+knowledge_base:
+  # ChromaDB 数据存储路径
+  persist_directory: ./chroma_data
+  # 相似案例检索数量
+  top_k: 5
+  # 集合名称
+  collection_name: gold_monitor_experiences
+
+# 数据库配置
+database:
+  # SQLite 数据库文件路径
+  path: ./data/gold_monitor.db
+
+# Web 服务配置
+web:
+  # 监听主机
+  host: 0.0.0.0
+  # 监听端口
+  port: 5000
+  # 是否开启调试模式
+  debug: false
+
+# 日志配置
+logging:
+  # 日志级别：DEBUG / INFO / WARNING / ERROR
+  level: INFO
+  # 日志文件目录
+  log_dir: ./logs
