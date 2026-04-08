@@ -13,6 +13,10 @@ const APP_STATE = {
     currentDays: 1,         // 当前筛选天数（历史页面）
     sortField: 'time',
     sortAsc: false,
+    // 图表状态
+    chartHours: 24,
+    chartSource: '',
+    priceChart: null,
 };
 
 // 方向/操作的中文映射
@@ -44,6 +48,16 @@ const CATEGORY_MAP = {
     general: '📰 综合',
 };
 
+const SOURCE_MAP = {
+    sina_hq: '新浪行情',
+    tencent_hq: '腾讯行情',
+};
+
+const SOURCE_COLORS = {
+    sina_hq: { line: '#D4A843', bg: 'rgba(212, 168, 67, 0.1)' },
+    tencent_hq: { line: '#58A6FF', bg: 'rgba(88, 166, 255, 0.1)' },
+};
+
 // ============================
 // 页面初始化
 // ============================
@@ -59,9 +73,11 @@ document.addEventListener('DOMContentLoaded', () => {
         loadEvents();
         loadAnalysis();
         loadNotifications();
+        initPriceChart();
         // 定时刷新
         setInterval(() => {
             loadPrices();
+            loadPriceChart();
             loadEvents();
             loadAnalysis();
             loadNotifications();
@@ -122,19 +138,23 @@ async function checkStatus() {
 // ============================
 async function loadPrices() {
     try {
-        const resp = await fetch('/api/prices');
+        const resp = await fetch('/api/prices?hours=24');
         const data = await resp.json();
         if (!data.success || !data.data.current) return;
 
         const current = data.data.current;
         const priceEl = document.getElementById('currentPrice');
         const timestampEl = document.getElementById('priceTimestamp');
+        const sourceEl = document.getElementById('priceSource');
         const changeEl = document.getElementById('priceChange');
         const percentEl = document.getElementById('priceChangePercent');
         const volatilityEl = document.getElementById('volatility');
 
         if (priceEl) priceEl.textContent = `$${current.price.toFixed(2)}`;
         if (timestampEl) timestampEl.textContent = current.timestamp ? formatTime(new Date(current.timestamp)) : '--';
+        if (sourceEl && current.source) {
+            sourceEl.textContent = SOURCE_MAP[current.source] || current.source;
+        }
 
         if (changeEl) {
             const change = current.change_24h;
@@ -151,9 +171,175 @@ async function loadPrices() {
         if (volatilityEl) {
             volatilityEl.textContent = `${current.volatility.toFixed(4)}%`;
         }
+
+        // 更新数据源按钮组
+        updateSourceButtons(data.data.sources || []);
     } catch (e) {
         console.error('加载金价失败:', e);
     }
+}
+
+function updateSourceButtons(sources) {
+    const group = document.getElementById('sourceGroup');
+    if (!group || sources.length === 0) return;
+
+    // 检查是否已经存在所有按钮
+    const existing = group.querySelectorAll('button[data-source]');
+    const existingSources = new Set(Array.from(existing).map(b => b.dataset.source));
+    const allPresent = sources.every(s => existingSources.has(s));
+    if (allPresent && existingSources.size === sources.length + 1) return; // +1 for "全部"
+
+    // 重建按钮组
+    group.innerHTML = `<button class="chart-btn ${APP_STATE.chartSource === '' ? 'active' : ''}" data-source="" onclick="switchSource('', this)">全部</button>`;
+    sources.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = `chart-btn ${APP_STATE.chartSource === s ? 'active' : ''}`;
+        btn.dataset.source = s;
+        btn.textContent = SOURCE_MAP[s] || s;
+        btn.onclick = () => switchSource(s, btn);
+        group.appendChild(btn);
+    });
+}
+
+// ============================
+// 金价走势图表
+// ============================
+function initPriceChart() {
+    const canvas = document.getElementById('priceChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    APP_STATE.priceChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets: [] },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        padding: 16,
+                        font: { family: "'Inter', sans-serif", size: 12 },
+                        color: '#4A4A6A',
+                    },
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(26, 26, 46, 0.9)',
+                    titleFont: { family: "'Inter', sans-serif" },
+                    bodyFont: { family: "'Inter', sans-serif" },
+                    padding: 12,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(ctx) {
+                            const src = SOURCE_MAP[ctx.dataset.sourceKey] || ctx.dataset.label;
+                            return `${src}: $${ctx.parsed.y.toFixed(2)}`;
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        tooltipFormat: 'yyyy-MM-dd HH:mm',
+                        displayFormats: {
+                            minute: 'HH:mm',
+                            hour: 'HH:mm',
+                            day: 'MM-dd',
+                        },
+                    },
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: {
+                        maxTicksLimit: 10,
+                        font: { size: 11 },
+                        color: '#8B8BA8',
+                    },
+                },
+                y: {
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: {
+                        font: { size: 11 },
+                        color: '#8B8BA8',
+                        callback: v => `$${v.toFixed(0)}`,
+                    },
+                },
+            },
+        },
+    });
+
+    loadPriceChart();
+}
+
+async function loadPriceChart() {
+    if (!APP_STATE.priceChart) return;
+
+    const hours = APP_STATE.chartHours;
+    const source = APP_STATE.chartSource;
+
+    try {
+        const url = `/api/prices?hours=${hours}${source ? `&source=${source}` : ''}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (!data.success) return;
+
+        const history = data.data.history || [];
+        if (history.length === 0) {
+            APP_STATE.priceChart.data.datasets = [];
+            APP_STATE.priceChart.update();
+            return;
+        }
+
+        // 按 source 分组
+        const grouped = {};
+        history.forEach(p => {
+            const src = p.source || 'unknown';
+            if (!grouped[src]) grouped[src] = [];
+            grouped[src].push({ x: new Date(p.timestamp), y: p.price });
+        });
+
+        const datasets = Object.entries(grouped).map(([src, points]) => {
+            const colors = SOURCE_COLORS[src] || { line: '#D4A843', bg: 'rgba(212, 168, 67, 0.1)' };
+            return {
+                label: SOURCE_MAP[src] || src,
+                sourceKey: src,
+                data: points,
+                borderColor: colors.line,
+                backgroundColor: colors.bg,
+                borderWidth: 2,
+                pointRadius: points.length > 100 ? 0 : 2,
+                pointHoverRadius: 4,
+                fill: true,
+                tension: 0.3,
+            };
+        });
+
+        APP_STATE.priceChart.data.datasets = datasets;
+        APP_STATE.priceChart.update();
+    } catch (e) {
+        console.error('加载图表数据失败:', e);
+    }
+}
+
+function switchTimeRange(hours, btn) {
+    APP_STATE.chartHours = hours;
+    document.querySelectorAll('#timeRangeGroup .chart-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    loadPriceChart();
+}
+
+function switchSource(source, btn) {
+    APP_STATE.chartSource = source;
+    document.querySelectorAll('#sourceGroup .chart-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    loadPriceChart();
 }
 
 // ============================

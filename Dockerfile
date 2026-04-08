@@ -24,7 +24,7 @@ COPY . .
 RUN mkdir -p data chroma_data logs
 
 # 暴露 Web 端口
-EXPOSE 5000
+EXPOSE 5051
 
 # 启动命令
 CMD ["python", "main.py", "--mode", "full"]

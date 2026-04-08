@@ -9,7 +9,7 @@ import logging
 import re
 import time
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 import requests
 
@@ -62,8 +62,10 @@ class PriceMonitor:
             try:
                 price_data = self._fetch_from_source(source)
                 if price_data:
-                    # 计算涨跌幅
-                    if self._cached_price:
+                    price_data.source = source['name']
+
+                    # 仅当解析器未返回有效涨跌数据时，才用缓存补算
+                    if price_data.change_24h == 0 and self._cached_price:
                         price_data.change_24h = round(
                             price_data.price - self._cached_price.price, 2
                         )
@@ -100,6 +102,39 @@ class PriceMonitor:
 
         logger.error("无法获取金价数据，且无可用缓存")
         return None
+
+    def fetch_all_sources(self) -> List[PriceData]:
+        """
+        遍历所有 API 源，独立采集每个源的价格数据。
+        返回带 source 标记的 PriceData 列表，各源互不覆盖。
+        """
+        results: List[PriceData] = []
+
+        for source in self.API_SOURCES:
+            try:
+                price_data = self._fetch_from_source(source)
+                if price_data:
+                    price_data.source = source['name']
+                    price_data.volatility = self._calculate_volatility(price_data.price)
+                    results.append(price_data)
+                    logger.info(
+                        "金价采集 [%s]: $%.2f, 涨跌: %+.2f%%",
+                        source['name'], price_data.price, price_data.change_percent_24h
+                    )
+            except Exception as e:
+                logger.warning("金价 API [%s] 采集失败: %s", source['name'], e)
+                continue
+
+        # 同步更新缓存（取第一个成功的）
+        if results:
+            now = time.time()
+            self._cached_price = results[0]
+            self._cache_time = now
+            self._price_history.append(results[0].price)
+            if len(self._price_history) > 288:
+                self._price_history = self._price_history[-288:]
+
+        return results
 
     def _fetch_from_source(self, source: dict) -> Optional[PriceData]:
         """从指定 API 源获取价格"""

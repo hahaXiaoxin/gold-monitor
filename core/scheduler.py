@@ -185,15 +185,25 @@ class GoldScheduler:
             logger.error("新闻采集与分析任务异常: %s", e, exc_info=True)
 
     def _job_check_price(self) -> None:
-        """定时任务：检查金价并存储"""
+        """定时任务：检查金价并存储（多源独立保存）"""
         try:
-            price_data = self.price_monitor.get_current_price()
-            if price_data:
-                self.db.save_price(price_data)
+            price_list = self.price_monitor.fetch_all_sources()
+            if price_list:
+                for price_data in price_list:
+                    self.db.save_price(price_data)
                 logger.info(
-                    "金价更新: $%.2f, 变动: %+.2f%%",
-                    price_data.price, price_data.change_percent_24h
+                    "金价更新: 采集到 %d 个数据源的价格数据",
+                    len(price_list)
                 )
+            else:
+                # 回退：单源采集
+                price_data = self.price_monitor.get_current_price()
+                if price_data:
+                    self.db.save_price(price_data)
+                    logger.info(
+                        "金价更新(回退): $%.2f, 变动: %+.2f%%",
+                        price_data.price, price_data.change_percent_24h
+                    )
         except Exception as e:
             logger.error("金价检查任务异常: %s", e, exc_info=True)
 

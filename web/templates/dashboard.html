@@ -9,7 +9,10 @@
     <div class="card price-card" id="priceCard">
         <div class="card-label">当前金价 (USD/oz)</div>
         <div class="price-value" id="currentPrice">--</div>
-        <div class="price-sub" id="priceTimestamp">加载中...</div>
+        <div class="price-meta">
+            <span class="price-source" id="priceSource"></span>
+            <span class="price-sub" id="priceTimestamp">加载中...</span>
+        </div>
     </div>
     <div class="card price-card" id="changeCard">
         <div class="card-label">24小时涨跌</div>
@@ -20,6 +23,31 @@
         <div class="card-label">波动率</div>
         <div class="volatility-value" id="volatility">--</div>
         <div class="price-sub">24小时价格波动指标</div>
+    </div>
+</section>
+
+<!-- 金价走势图表 -->
+<section class="chart-section">
+    <div class="chart-header">
+        <h2 class="section-title">
+            <span class="section-icon">📈</span>
+            金价走势
+        </h2>
+        <div class="chart-controls">
+            <div class="chart-btn-group" id="timeRangeGroup">
+                <button class="chart-btn" data-hours="1" onclick="switchTimeRange(1, this)">1小时</button>
+                <button class="chart-btn" data-hours="6" onclick="switchTimeRange(6, this)">6小时</button>
+                <button class="chart-btn active" data-hours="24" onclick="switchTimeRange(24, this)">24小时</button>
+                <button class="chart-btn" data-hours="168" onclick="switchTimeRange(168, this)">7天</button>
+                <button class="chart-btn" data-hours="720" onclick="switchTimeRange(720, this)">30天</button>
+            </div>
+            <div class="chart-btn-group" id="sourceGroup">
+                <button class="chart-btn active" data-source="" onclick="switchSource('', this)">全部</button>
+            </div>
+        </div>
+    </div>
+    <div class="card chart-card">
+        <canvas id="priceChart"></canvas>
     </div>
 </section>
 

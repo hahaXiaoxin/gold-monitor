@@ -91,10 +91,14 @@ def create_app(
 
     @app.route('/api/prices')
     def api_prices():
-        """金价数据接口"""
+        """金价数据接口（支持按时间维度和数据源筛选）"""
         try:
-            latest = db.get_latest_price()
-            history = db.get_price_history(hours=24)
+            hours = request.args.get('hours', 24, type=int)
+            source = request.args.get('source', '', type=str)
+
+            latest = db.get_latest_price_by_source(source) if source else db.get_latest_price()
+            history = db.get_price_history_v2(hours=hours, source=source)
+            sources = db.get_available_sources()
 
             return jsonify({
                 'success': True,
@@ -107,14 +111,19 @@ def create_app(
                         'high_24h': latest.high_24h if latest else 0,
                         'low_24h': latest.low_24h if latest else 0,
                         'timestamp': latest.timestamp.isoformat() if latest and latest.timestamp else None,
+                        'source': latest.source if latest else '',
                     } if latest else None,
                     'history': [
                         {
                             'price': p.price,
                             'timestamp': p.timestamp.isoformat() if p.timestamp else None,
+                            'source': p.source,
+                            'change_24h': p.change_24h,
+                            'change_percent_24h': p.change_percent_24h,
                         }
                         for p in history
-                    ]
+                    ],
+                    'sources': sources,
                 }
             })
         except Exception as e:

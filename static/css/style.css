@@ -291,6 +291,83 @@ body {
     line-height: 1.2;
 }
 
+.price-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.price-source {
+    background: var(--bg-tertiary);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* ============================
+   金价走势图表
+   ============================ */
+.chart-section {
+    margin-bottom: 28px;
+}
+
+.chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.chart-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.chart-btn-group {
+    display: flex;
+    background: var(--bg-primary);
+    border: 1px solid var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.chart-btn {
+    padding: 6px 14px;
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: var(--font-family);
+    white-space: nowrap;
+}
+
+.chart-btn:hover {
+    background: var(--bg-hover);
+}
+
+.chart-btn.active {
+    background: var(--gold-primary);
+    color: #fff;
+}
+
+.chart-card {
+    padding: 20px;
+    height: 380px;
+    position: relative;
+}
+
 /* ============================
    关键事件卡片流
    ============================ */
@@ -1089,6 +1166,29 @@ body {
     .price-cards {
         grid-template-columns: 1fr;
         gap: 12px;
+    }
+
+    .chart-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .chart-controls {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .chart-btn-group {
+        width: 100%;
+    }
+
+    .chart-btn {
+        flex: 1;
+        text-align: center;
+    }
+
+    .chart-card {
+        height: 280px;
     }
 
     .analysis-body {

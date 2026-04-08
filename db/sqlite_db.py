@@ -25,7 +25,7 @@ from models.schemas import (
 logger = logging.getLogger(__name__)
 
 # 当前数据库 schema 版本
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class SQLiteDB:
@@ -101,7 +101,8 @@ class SQLiteDB:
                     high_24h REAL DEFAULT 0,
                     low_24h REAL DEFAULT 0,
                     volatility REAL DEFAULT 0,
-                    timestamp TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                    timestamp TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                    source TEXT DEFAULT ''
                 )
             """)
 
@@ -155,10 +156,15 @@ class SQLiteDB:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_published ON news_items(published_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_created ON analysis_results(created_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_price_timestamp ON price_history(timestamp)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_price_source ON price_history(source)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_price_ts_source ON price_history(timestamp, source)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_summary_date ON daily_summaries(date)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_feedback_analysis ON user_feedback(analysis_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_created ON key_events(created_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_impact ON key_events(impact_level)")
+
+            # Schema 迁移
+            self._migrate_schema(cursor)
 
             # 记录 schema 版本
             cursor.execute(
@@ -173,6 +179,28 @@ class SQLiteDB:
             raise
         finally:
             conn.close()
+
+    # ==================== Schema 迁移 ====================
+
+    def _migrate_schema(self, cursor: sqlite3.Cursor) -> None:
+        """执行 schema 迁移"""
+        # 获取当前数据库版本
+        try:
+            row = cursor.execute(
+                "SELECT MAX(version) as ver FROM schema_version"
+            ).fetchone()
+            current_version = row['ver'] if row and row['ver'] else 0
+        except Exception:
+            current_version = 0
+
+        # v1 -> v2: price_history 新增 source 列
+        if current_version < 2:
+            try:
+                cursor.execute("ALTER TABLE price_history ADD COLUMN source TEXT DEFAULT ''")
+                logger.info("Schema 迁移 v1->v2: price_history 新增 source 列")
+            except sqlite3.OperationalError:
+                # 列已存在（新建的表已经包含了）
+                pass
 
     # ==================== 新闻操作 ====================
 
@@ -309,13 +337,14 @@ class SQLiteDB:
             conn.execute(
                 """INSERT INTO price_history
                    (price, currency, change_24h, change_percent_24h,
-                    high_24h, low_24h, volatility, timestamp)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    high_24h, low_24h, volatility, timestamp, source)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     price.price, price.currency, price.change_24h,
                     price.change_percent_24h, price.high_24h, price.low_24h,
                     price.volatility,
-                    (price.timestamp or datetime.now()).isoformat()
+                    (price.timestamp or datetime.now()).isoformat(),
+                    price.source or ''
                 )
             )
             conn.commit()
@@ -345,6 +374,57 @@ class SQLiteDB:
                 (since,)
             ).fetchall()
             return [self._row_to_price(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_price_history_v2(self, hours: int = 24, source: str = '') -> List[PriceData]:
+        """获取价格历史（支持按来源筛选）"""
+        since = (datetime.now() - timedelta(hours=hours)).isoformat()
+        conn = self._get_conn()
+        try:
+            if source:
+                rows = conn.execute(
+                    """SELECT * FROM price_history
+                       WHERE timestamp >= ? AND source = ?
+                       ORDER BY timestamp ASC""",
+                    (since, source)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM price_history
+                       WHERE timestamp >= ?
+                       ORDER BY timestamp ASC""",
+                    (since,)
+                ).fetchall()
+            return [self._row_to_price(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_available_sources(self) -> List[str]:
+        """获取所有可用的价格数据来源"""
+        conn = self._get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT source FROM price_history WHERE source != '' ORDER BY source"
+            ).fetchall()
+            return [r['source'] for r in rows]
+        finally:
+            conn.close()
+
+    def get_latest_price_by_source(self, source: str = '') -> Optional[PriceData]:
+        """获取指定来源的最新价格"""
+        conn = self._get_conn()
+        try:
+            if source:
+                row = conn.execute(
+                    "SELECT * FROM price_history WHERE source = ? ORDER BY timestamp DESC LIMIT 1",
+                    (source,)
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT * FROM price_history ORDER BY timestamp DESC LIMIT 1"
+                ).fetchone()
+            return self._row_to_price(row) if row else None
         finally:
             conn.close()
 
@@ -574,7 +654,8 @@ class SQLiteDB:
             high_24h=row['high_24h'],
             low_24h=row['low_24h'],
             volatility=row['volatility'],
-            timestamp=datetime.fromisoformat(row['timestamp'])
+            timestamp=datetime.fromisoformat(row['timestamp']),
+            source=row['source'] if 'source' in row.keys() else ''
         )
 
     @staticmethod

@@ -47,6 +47,7 @@ class PriceData:
     low_24h: float = 0.0               # 24小时最低价
     volatility: float = 0.0            # 波动率
     timestamp: Optional[datetime] = None  # 数据时间
+    source: str = ''                    # 数据来源（如 sina, tencent）
 
 
 @dataclass

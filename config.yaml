@@ -86,7 +86,7 @@ web:
   # 监听主机
   host: 0.0.0.0
   # 监听端口
-  port: 5000
+  port: 5051
   # 是否开启调试模式
   debug: false
 
@@ -97,7 +97,7 @@ gateway:
   # 网关地址
   url: http://localhost:3000
   # 注册到网关的域名标识（必须唯一）
-  domain: gold.hellocola.com
+  domain: gold.hellocola.cloud
   # 服务显示名称
   name: Gold Monitor
   # 服务描述

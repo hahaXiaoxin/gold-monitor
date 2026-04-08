@@ -7,6 +7,8 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚜️</text></svg>">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
     <!-- 顶部导航栏 -->
@@ -36,7 +38,7 @@
     <!-- 页脚 -->
     <footer class="footer">
         <div class="footer-container">
-            <span>Gold Monitor © {{ now().year if now is defined else 2024 }} | 黄金智能监控与分析系统</span>
+            <span>Gold Monitor © {{ now().year if now is defined else 2024 }} | Cola-Gold 黄金信息采集</span>
             <span class="footer-info">AI 驱动 · 多源采集 · 智能分析</span>
         </div>
     </footer>
