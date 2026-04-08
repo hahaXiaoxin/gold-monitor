@@ -46,9 +46,12 @@ class Config:
         if config_path.exists():
             with open(config_path, 'r', encoding='utf-8') as f:
                 self._config = yaml.safe_load(f) or {}
-            logger.info("已加载 config.yaml 配置文件")
+            logger.info("已加载 config.yaml 配置文件: %s", config_path)
+            # 调试：打印关键配置确认加载正确
+            gw = self._config.get('gateway', {})
+            logger.info("gateway 配置: enabled=%s, url=%s", gw.get('enabled'), gw.get('url'))
         else:
-            logger.warning("未找到 config.yaml，将使用默认配置")
+            logger.warning("未找到 config.yaml（查找路径: %s），将使用默认配置", config_path)
             self._config = {}
 
         # 校验关键配置
@@ -165,7 +168,7 @@ class Config:
     @property
     def gateway_url(self) -> str:
         """网关地址（环境变量优先）"""
-        return self.get_env('GATEWAY_URL') or self.get('gateway.url', 'http://localhost:3000')
+        return self.get_env('GATEWAY_URL') or self.get('gateway.url', 'http://host.docker.internal:3000')
 
     @property
     def gateway_domain(self) -> str:
