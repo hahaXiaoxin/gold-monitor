@@ -7,7 +7,7 @@ services:
     container_name: gold-monitor
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "5051:5051"
     volumes:
       # 持久化数据文件
       - ./data:/app/data

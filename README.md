@@ -175,7 +175,7 @@ python main.py --mode web
 python main.py --mode scheduler
 ```
 
-访问 `http://localhost:5000` 查看仪表盘。
+访问 `http://localhost:5051` 查看仪表盘。
 
 ### Docker 部署
 

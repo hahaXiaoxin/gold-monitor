@@ -148,7 +148,7 @@ class Config:
     @property
     def web_port(self) -> int:
         """Web 服务端口"""
-        return self.get('web.port', 5000)
+        return self.get('web.port', 5051)
 
     @property
     def web_debug(self) -> bool:
