@@ -204,9 +204,9 @@ class GoldScheduler:
             logger.info("开始生成每日总结")
 
             # 获取今日数据
-            analyses = self.db.get_recent_analyses(hours=24)
+            analyses = self.db.get_recent_analyses(hours=24, limit=200)
             price_changes = self.db.get_price_history(hours=24)
-            news_items = self.db.get_recent_news(hours=24)
+            news_items = self.db.get_recent_news(hours=24, limit=200)
 
             if not analyses and not news_items:
                 logger.info("今日无分析数据，跳过总结生成")
