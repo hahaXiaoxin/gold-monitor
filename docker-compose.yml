@@ -19,6 +19,8 @@ services:
       - .env
     environment:
       - TZ=Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5051/api/status')"]
       interval: 30s

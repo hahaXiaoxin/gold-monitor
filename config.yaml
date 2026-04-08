@@ -94,8 +94,8 @@ web:
 gateway:
   # 是否启用网关注册（启用后会自动注册服务并保持心跳）
   enabled: false
-  # 网关地址
-  url: http://localhost:3000
+  # 网关地址（Docker 容器内用 host.docker.internal 访问宿主机）
+  url: http://host.docker.internal:3000
   # 注册到网关的域名标识（必须唯一）
   domain: gold.hellocola.cloud
   # 服务显示名称
