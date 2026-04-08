@@ -50,7 +50,7 @@ class GatewayRegistry:
 
         :param gateway_url: 网关地址，如 http://localhost:3000
         :param domain: 注册到网关的域名标识，如 gold-monitor.local
-        :param target: 本服务的实际访问地址，如 http://localhost:5000
+        :param target: 本服务的实际访问地址，如 http://localhost:5051
         :param name: 服务显示名称
         :param description: 服务描述
         :param icon: 服务图标 URL

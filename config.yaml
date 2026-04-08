@@ -93,9 +93,9 @@ web:
 # hellocola-gateway 网关注册配置
 gateway:
   # 是否启用网关注册（启用后会自动注册服务并保持心跳）
-  enabled: false
-  # 网关地址（Docker 容器内用 host.docker.internal 访问宿主机）
-  url: http://host.docker.internal:3000
+  enabled: true
+  # 网关地址（通过共享 Docker 网络用容器名访问，环境变量 GATEWAY_URL 可覆盖）
+  url: http://hellocola-gateway:3000
   # 注册到网关的域名标识（必须唯一）
   domain: gold.hellocola.cloud
   # 服务显示名称

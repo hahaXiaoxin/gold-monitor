@@ -19,11 +19,19 @@ services:
       - .env
     environment:
       - TZ=Asia/Shanghai
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # 网关地址：通过共享网络直接用容器名访问
+      - GATEWAY_URL=http://hellocola-gateway:3000
+      # 本服务的回调地址：网关通过共享网络访问本容器
+      - GATEWAY_TARGET=http://gold-monitor:5051
+    networks:
+      - hellocola-net
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5051/api/status')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
+
+networks:
+  hellocola-net:
+    external: true

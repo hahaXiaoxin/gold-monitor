@@ -238,7 +238,7 @@ daily_summary:
   minute: 0
 
 web:
-  port: 5000
+  port: 5051
 ```
 
 完整配置项请参考 `config.yaml` 文件中的注释。
@@ -296,7 +296,7 @@ curl -X POST http://gateway:3000/api/services \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "gold.hellocola.cloud",
-    "target": "http://gold-monitor:5000",
+    "target": "http://gold-monitor:5051",
     "name": "Gold Monitor"
   }'
 ```
