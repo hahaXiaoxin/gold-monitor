@@ -1,10 +1,12 @@
 """
 金价监控器模块
 
-从公开 API 获取实时黄金价格，5 分钟缓存，计算涨跌幅和波动率，支持历史价格查询。
+从新浪/腾讯行情 API 获取实时黄金价格（纽约金 COMEX GC），
+5 分钟缓存，计算涨跌幅和波动率，支持历史价格查询。
 """
 
 import logging
+import re
 import time
 from datetime import datetime
 from typing import Optional
@@ -20,19 +22,19 @@ logger = logging.getLogger(__name__)
 class PriceMonitor:
     """黄金价格监控器"""
 
-    # 备用金价 API 列表
+    # 行情 API 源列表（优先级从高到低）
     API_SOURCES = [
         {
-            'name': 'frankfurter',
-            'url': 'https://api.frankfurter.app/latest',
-            'params': {'from': 'XAU', 'to': 'USD'},
-            'parser': '_parse_frankfurter',
+            'name': 'sina_hq',
+            'url': 'https://hq.sinajs.cn/list=hf_GC',
+            'headers': {'Referer': 'https://finance.sina.com.cn'},
+            'parser': '_parse_sina_hq',
         },
         {
-            'name': 'metals_api',
-            'url': 'https://metals-api.com/api/latest',
-            'params': {'access_key': '', 'base': 'XAU', 'symbols': 'USD'},
-            'parser': '_parse_metals_api',
+            'name': 'tencent_hq',
+            'url': 'https://qt.gtimg.cn/q=hf_GC',
+            'headers': {},
+            'parser': '_parse_tencent_hq',
         },
     ]
 
@@ -102,61 +104,101 @@ class PriceMonitor:
     def _fetch_from_source(self, source: dict) -> Optional[PriceData]:
         """从指定 API 源获取价格"""
         try:
-            api_key = self.config.get_env('GOLD_API_KEY', '')
-            params = source.get('params', {}).copy()
-
-            # 如果 API 需要 key 但未配置，跳过
-            if 'access_key' in params:
-                if not api_key:
-                    return None
-                params['access_key'] = api_key
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+                **source.get('headers', {})
+            }
 
             resp = requests.get(
                 source['url'],
-                params=params,
                 timeout=10,
-                headers={'User-Agent': 'GoldMonitor/1.0'}
+                headers=headers
             )
+            resp.encoding = 'gbk'
 
             if resp.status_code == 200:
                 parser = getattr(self, source['parser'])
-                return parser(resp.json())
+                return parser(resp.text)
         except Exception as e:
             logger.debug("API [%s] 解析失败: %s", source['name'], e)
         return None
 
     @staticmethod
-    def _parse_frankfurter(data: dict) -> Optional[PriceData]:
-        """解析 Frankfurter API 响应"""
+    def _parse_sina_hq(text: str) -> Optional[PriceData]:
+        """
+        解析新浪行情 API 响应
+        格式: var hq_str_hf_GC="最新价,,昨收,开盘,最高,最低,时间,买价,卖价,...,日期,名称,0";
+        """
         try:
-            rates = data.get('rates', {})
-            usd_rate = rates.get('USD')
-            if usd_rate and usd_rate > 0:
-                # Frankfurter 返回的是 1 XAU = X USD
-                return PriceData(
-                    price=round(usd_rate, 2),
-                    currency='USD',
-                    timestamp=datetime.now()
-                )
-        except (KeyError, TypeError, ValueError) as e:
-            logger.debug("Frankfurter 数据解析错误: %s", e)
+            match = re.search(r'"([^"]+)"', text)
+            if not match:
+                return None
+
+            fields = match.group(1).split(',')
+            if len(fields) < 6:
+                return None
+
+            price = float(fields[0])
+            if price <= 0:
+                return None
+
+            yesterday_close = float(fields[2]) if fields[2] else 0
+            high = float(fields[4]) if fields[4] else price
+            low = float(fields[5]) if fields[5] else price
+
+            change = round(price - yesterday_close, 2) if yesterday_close > 0 else 0
+            change_pct = round(change / yesterday_close * 100, 4) if yesterday_close > 0 else 0
+
+            return PriceData(
+                price=round(price, 2),
+                currency='USD',
+                timestamp=datetime.now(),
+                change_24h=change,
+                change_percent_24h=change_pct,
+                high_24h=round(high, 2),
+                low_24h=round(low, 2),
+            )
+        except (ValueError, IndexError) as e:
+            logger.debug("新浪行情解析错误: %s", e)
         return None
 
     @staticmethod
-    def _parse_metals_api(data: dict) -> Optional[PriceData]:
-        """解析 Metals API 响应"""
+    def _parse_tencent_hq(text: str) -> Optional[PriceData]:
+        """
+        解析腾讯行情 API 响应
+        格式: v_hf_GC="最新价,涨跌,昨收,开盘,最高,最低,时间,买价,卖价,...,日期,名称";
+        """
         try:
-            if data.get('success'):
-                rates = data.get('rates', {})
-                usd_rate = rates.get('USD')
-                if usd_rate and usd_rate > 0:
-                    return PriceData(
-                        price=round(usd_rate, 2),
-                        currency='USD',
-                        timestamp=datetime.now()
-                    )
-        except (KeyError, TypeError, ValueError) as e:
-            logger.debug("Metals API 数据解析错误: %s", e)
+            match = re.search(r'"([^"]+)"', text)
+            if not match:
+                return None
+
+            fields = match.group(1).split(',')
+            if len(fields) < 6:
+                return None
+
+            price = float(fields[0])
+            if price <= 0:
+                return None
+
+            change = float(fields[1]) if fields[1] else 0
+            yesterday_close = float(fields[2]) if fields[2] else 0
+            high = float(fields[4]) if fields[4] else price
+            low = float(fields[5]) if fields[5] else price
+
+            change_pct = round(change / yesterday_close * 100, 4) if yesterday_close > 0 else 0
+
+            return PriceData(
+                price=round(price, 2),
+                currency='USD',
+                timestamp=datetime.now(),
+                change_24h=round(change, 2),
+                change_percent_24h=change_pct,
+                high_24h=round(high, 2),
+                low_24h=round(low, 2),
+            )
+        except (ValueError, IndexError) as e:
+            logger.debug("腾讯行情解析错误: %s", e)
         return None
 
     def _calculate_volatility(self, current_price: float) -> float:

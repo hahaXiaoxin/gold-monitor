@@ -7,7 +7,7 @@ ai:
   # 当前使用的 AI 提供商：qwen / openai
   provider: qwen
   # 通义千问模型名称
-  qwen_model: qwen-turbo
+  qwen_model: qwen-plus
   # OpenAI 模型名称
   openai_model: gpt-4o-mini
   # AI 调用最大重试次数
@@ -25,8 +25,8 @@ collector:
   request_timeout: 15
   # 启用的新闻源列表
   enabled_sources:
+    - eastmoney
     - sina_finance
-    - jin10
     - rss_gold
 
 # 金价监控配置
@@ -97,7 +97,7 @@ gateway:
   # 网关地址
   url: http://localhost:3000
   # 注册到网关的域名标识（必须唯一）
-  domain: gold-monitor.local
+  domain: gold.hellocola.com
   # 服务显示名称
   name: Gold Monitor
   # 服务描述

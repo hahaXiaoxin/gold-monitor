@@ -88,6 +88,16 @@ class AIProvider(ABC):
         """
         ...
 
+    @staticmethod
+    def _sanitize_text(text: str) -> str:
+        """清理文本中的 URL，避免触发 API 的 URL 检测"""
+        import re
+        # 移除 http/https URL
+        text = re.sub(r'https?://\S+', '', text)
+        # 移除 www 开头的链接
+        text = re.sub(r'www\.\S+', '', text)
+        return text.strip()
+
     def _build_analysis_prompt(
         self,
         news_items: List[NewsItem],
@@ -96,7 +106,7 @@ class AIProvider(ABC):
     ) -> str:
         """构建新闻分析 prompt"""
         news_text = "\n".join([
-            f"- [{item.source}] {item.title}: {item.content[:200]}"
+            f"- [{item.source}] {self._sanitize_text(item.title)}: {self._sanitize_text(item.content[:200])}"
             for item in news_items
         ])
 
@@ -164,8 +174,8 @@ class AIProvider(ABC):
             last = price_changes[-1]
             price_text = f"开盘 ${first.price} → 收盘 ${last.price}，变动 {last.change_percent_24h:+.2f}%"
 
-        # 新闻标题列表
-        news_titles = "\n".join([f"- [{n.source}] {n.title}" for n in news_items[:20]])
+        # 新闻标题列表（清理 URL）
+        news_titles = "\n".join([f"- [{n.source}] {self._sanitize_text(n.title)}" for n in news_items[:20]])
 
         return f"""你是一位专业的黄金市场分析师。请为今日的黄金市场生成每日总结报告。
 
@@ -305,6 +315,7 @@ class QwenProvider(AIProvider):
 
         for attempt in range(self.max_retries):
             try:
+                # 使用 prompt + text 格式调用（稳定兼容）
                 response = Generation.call(
                     model=self.model,
                     prompt=prompt,
@@ -313,18 +324,37 @@ class QwenProvider(AIProvider):
                     temperature=0.3,
                 )
 
-                if response and response.output:
-                    return response.output.get('text', '') or str(response.output)
+                # 检查响应状态
+                status = getattr(response, 'status_code', None)
+                if status and str(status) != '200' and 'OK' not in str(status):
+                    logger.warning(
+                        "通义千问返回非 200 状态: %s, code=%s, message=%s",
+                        status, getattr(response, 'code', ''),
+                        getattr(response, 'message', '')
+                    )
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (2 ** attempt))
+                    continue
 
-                logger.warning("通义千问返回空响应，尝试 %d/%d", attempt + 1, self.max_retries)
+                # 从 text 格式响应中提取文本
+                output = response.output
+                if output:
+                    text = output.get('text', '') if hasattr(output, 'get') else getattr(output, 'text', '')
+                    if text:
+                        return text
+
+                logger.warning(
+                    "通义千问返回空响应，尝试 %d/%d, output=%s",
+                    attempt + 1, self.max_retries, str(output)[:200] if output else 'None'
+                )
             except Exception as e:
                 logger.warning(
                     "通义千问 API 调用失败 (尝试 %d/%d): %s",
                     attempt + 1, self.max_retries, e
                 )
-                if attempt < self.max_retries - 1:
-                    delay = self.retry_delay * (2 ** attempt)  # 指数退避
-                    time.sleep(delay)
+            if attempt < self.max_retries - 1:
+                delay = self.retry_delay * (2 ** attempt)  # 指数退避
+                time.sleep(delay)
 
         raise RuntimeError(f"通义千问 API 调用失败，已重试 {self.max_retries} 次")
 
