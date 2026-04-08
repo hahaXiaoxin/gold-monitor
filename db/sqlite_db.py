@@ -152,6 +152,9 @@ class SQLiteDB:
                 )
             """)
 
+            # Schema 迁移（必须在创建索引之前，确保新列已存在）
+            self._migrate_schema(cursor)
+
             # 创建索引
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_published ON news_items(published_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_created ON analysis_results(created_at)")
@@ -162,9 +165,6 @@ class SQLiteDB:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_feedback_analysis ON user_feedback(analysis_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_created ON key_events(created_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_impact ON key_events(impact_level)")
-
-            # Schema 迁移
-            self._migrate_schema(cursor)
 
             # 记录 schema 版本
             cursor.execute(
@@ -224,13 +224,18 @@ class SQLiteDB:
         finally:
             conn.close()
 
-    def save_news_batch(self, news_list: List[NewsItem]) -> List[str]:
-        """批量保存新闻"""
+    def save_news_batch(self, news_list: List[NewsItem]) -> dict:
+        """批量保存新闻，返回 {'ids': [...], 'new_count': 实际新增条数}"""
         ids = []
+        new_count = 0
         conn = self._get_conn()
         try:
             for news in news_list:
                 news_id = news.id or str(uuid.uuid4())
+                # 检查是否已存在
+                existing = conn.execute(
+                    "SELECT id FROM news_items WHERE id = ?", (news_id,)
+                ).fetchone()
                 conn.execute(
                     """INSERT OR REPLACE INTO news_items
                        (id, title, content, source, url, published_at, keywords)
@@ -242,8 +247,10 @@ class SQLiteDB:
                     )
                 )
                 ids.append(news_id)
+                if not existing:
+                    new_count += 1
             conn.commit()
-            return ids
+            return {'ids': ids, 'new_count': new_count}
         finally:
             conn.close()
 
@@ -609,6 +616,150 @@ class SQLiteDB:
                     for row in by_direction
                 }
             }
+        finally:
+            conn.close()
+
+    def auto_verify_predictions(self) -> dict:
+        """
+        自动验证未反馈的分析预测是否准确。
+        逻辑：对比分析发出时的金价和 24 小时后的金价，判断实际涨跌方向是否与预测一致。
+        只处理已超过 24 小时的分析记录（未满 24 小时的跳过，等下次再验证）。
+        - bullish(利好) → 24h 后涨了 = 准确
+        - bearish(利空) → 24h 后跌了 = 准确
+        - neutral(中性) → 24h 涨跌幅 < 0.1% = 准确
+        返回 {'verified': 已验证数, 'accurate': 准确数, 'inaccurate': 不准确数, 'skipped': 不足24h跳过数}
+        """
+        conn = self._get_conn()
+        try:
+            # 只处理已超过 24 小时的未反馈分析
+            cutoff = (datetime.now() - timedelta(hours=24)).isoformat()
+            rows = conn.execute(
+                """SELECT ar.id, ar.direction, ar.confidence, ar.created_at
+                   FROM analysis_results ar
+                   LEFT JOIN user_feedback uf ON ar.id = uf.analysis_id
+                   WHERE uf.id IS NULL AND ar.created_at <= ?
+                   ORDER BY ar.created_at ASC""",
+                (cutoff,)
+            ).fetchall()
+
+            if not rows:
+                return {'verified': 0, 'accurate': 0, 'inaccurate': 0, 'skipped': 0}
+
+            verified = 0
+            accurate = 0
+            inaccurate = 0
+            skipped = 0
+
+            for row in rows:
+                analysis_id = row['id']
+                direction = row['direction']
+                created_at = row['created_at']
+
+                # 分析发出时最近的金价（基准价）
+                price_at_analysis = conn.execute(
+                    """SELECT price FROM price_history
+                       WHERE timestamp <= ?
+                       ORDER BY timestamp DESC LIMIT 1""",
+                    (created_at,)
+                ).fetchone()
+
+                if not price_at_analysis:
+                    price_at_analysis = conn.execute(
+                        """SELECT price FROM price_history
+                           WHERE timestamp >= ?
+                           ORDER BY timestamp ASC LIMIT 1""",
+                        (created_at,)
+                    ).fetchone()
+
+                if not price_at_analysis:
+                    skipped += 1
+                    continue
+
+                base_price = price_at_analysis['price']
+                if base_price <= 0:
+                    skipped += 1
+                    continue
+
+                # 分析发出 24 小时后最近的金价
+                after_24h = (datetime.fromisoformat(created_at) + timedelta(hours=24)).isoformat()
+                price_after_24h = conn.execute(
+                    """SELECT price, timestamp FROM price_history
+                       WHERE timestamp >= ?
+                       ORDER BY timestamp ASC LIMIT 1""",
+                    (after_24h,)
+                ).fetchone()
+
+                if not price_after_24h:
+                    # 24h 后还没有金价数据，跳过等下次
+                    skipped += 1
+                    continue
+
+                future_price = price_after_24h['price']
+
+                # 计算 24h 实际涨跌幅
+                actual_change_pct = (future_price - base_price) / base_price * 100
+
+                # 判断预测是否准确
+                if direction == 'bullish':
+                    is_accurate = actual_change_pct > 0
+                elif direction == 'bearish':
+                    is_accurate = actual_change_pct < 0
+                else:  # neutral
+                    is_accurate = abs(actual_change_pct) < 0.1
+
+                comment = '系统自动验证（24h）：分析时 ${:.2f} → 24h后 ${:.2f}（{:+.2f}%）'.format(
+                    base_price, future_price, actual_change_pct
+                )
+
+                feedback = UserFeedback(
+                    analysis_id=analysis_id,
+                    is_accurate=is_accurate,
+                    comment=comment,
+                )
+                self.save_feedback(feedback)
+                verified += 1
+                if is_accurate:
+                    accurate += 1
+                else:
+                    inaccurate += 1
+
+            result = {'verified': verified, 'accurate': accurate, 'inaccurate': inaccurate, 'skipped': skipped}
+            logger.info(
+                "自动验证完成: 共 %d 条，准确 %d 条，不准确 %d 条，跳过 %d 条",
+                verified, accurate, inaccurate, skipped
+            )
+            return result
+        finally:
+            conn.close()
+
+    def cleanup_stale_analyses(self, days: int = 7) -> int:
+        """清除超过指定天数仍未被评审（无反馈）的分析记录及其关联数据。返回删除条数。"""
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        conn = self._get_conn()
+        try:
+            # 找出超期且无反馈的分析 ID
+            rows = conn.execute(
+                """SELECT ar.id FROM analysis_results ar
+                   LEFT JOIN user_feedback uf ON ar.id = uf.analysis_id
+                   WHERE uf.id IS NULL AND ar.created_at <= ?""",
+                (cutoff,)
+            ).fetchall()
+
+            if not rows:
+                return 0
+
+            ids = [r['id'] for r in rows]
+            placeholders = ','.join('?' * len(ids))
+
+            # 删除关联的关键事件（通过 news_ids 关联不直接，按时间段清理）
+            # 删除分析记录本身
+            conn.execute(
+                f"DELETE FROM analysis_results WHERE id IN ({placeholders})", ids
+            )
+
+            conn.commit()
+            logger.info("清理过期未评审分析: 删除 %d 条（超过 %d 天）", len(ids), days)
+            return len(ids)
         finally:
             conn.close()
 

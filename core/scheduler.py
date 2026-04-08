@@ -92,6 +92,14 @@ class GoldScheduler:
             name='每日总结'
         )
 
+        # 自动验证分析预测（每日0:00，对比实际金价涨跌）
+        self.scheduler.add_job(
+            self._job_auto_verify,
+            trigger=CronTrigger(hour=0, minute=0),
+            id='auto_verify',
+            name='自动验证分析预测'
+        )
+
         self.scheduler.start()
         logger.info(
             "调度器已启动 - 采集间隔: %d分钟, 金价检查: %d分钟, 每日总结: %02d:%02d",
@@ -116,9 +124,14 @@ class GoldScheduler:
                 logger.info("本次采集未获取到新闻，跳过分析")
                 return
 
-            # 2. 批量保存新闻
-            self.db.save_news_batch(news_items)
-            logger.info("已保存 %d 条新闻到数据库", len(news_items))
+            # 2. 批量保存新闻（去重）
+            save_result = self.db.save_news_batch(news_items)
+            new_count = save_result['new_count']
+            logger.info("采集 %d 条新闻，其中新增 %d 条", len(news_items), new_count)
+
+            if new_count == 0:
+                logger.info("无新增新闻，跳过 AI 分析")
+                return
 
             # 3. 获取当前金价
             price_data = self.price_monitor.get_current_price()
@@ -140,10 +153,12 @@ class GoldScheduler:
 
             # 7. 保存关键事件（高/中影响的）
             if analysis.impact_level in ('high', 'medium'):
-                for news in news_items[:3]:  # 取前3条最相关的新闻
+                for news in news_items[:3]:
+                    # 用新闻自身的内容摘要，避免所有卡片显示相同的分析理由
+                    summary = (news.content or news.title)[:120]
                     event = KeyEvent(
                         title=news.title,
-                        summary=analysis.reasoning[:100],
+                        summary=summary,
                         url=news.url,
                         source=news.source,
                         direction=analysis.direction,
@@ -249,3 +264,22 @@ class GoldScheduler:
 
         except Exception as e:
             logger.error("每日总结任务异常: %s", e, exc_info=True)
+
+    def _job_auto_verify(self) -> None:
+        """定时任务：自动验证分析预测 + 清理过期未评审记录（每日0:00）"""
+        try:
+            # 1. 清理超过 7 天仍未评审的分析记录
+            logger.info("=" * 40)
+            logger.info("开始执行: 清理过期未评审分析（>7天）")
+            deleted = self.db.cleanup_stale_analyses(days=7)
+            logger.info("清理完成: 删除 %d 条过期记录", deleted)
+
+            # 2. 自动验证（对比 24h 实际涨跌）
+            logger.info("开始执行: 自动验证分析预测（24h 涨跌对比）")
+            result = self.db.auto_verify_predictions()
+            logger.info(
+                "自动验证完成: 验证 %d 条, 准确 %d, 不准确 %d, 跳过(不足24h) %d",
+                result['verified'], result['accurate'], result['inaccurate'], result['skipped']
+            )
+        except Exception as e:
+            logger.error("自动验证任务异常: %s", e, exc_info=True)

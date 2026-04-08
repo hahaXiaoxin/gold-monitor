@@ -533,6 +533,63 @@ function showFeedbackSubmitted(isAccurate) {
 // ============================
 // 近期通知列表
 // ============================
+// ============================
+// 分析记录行内反馈
+// ============================
+function toggleAnalysisDetail(row) {
+    // 避免点击按钮时也触发展开
+    if (event && event.target.closest('.btn-row-feedback')) return;
+    const detailRow = row.nextElementSibling;
+    if (!detailRow || !detailRow.classList.contains('analysis-detail-row')) return;
+    const isOpen = detailRow.style.display !== 'none';
+    detailRow.style.display = isOpen ? 'none' : 'table-row';
+    row.classList.toggle('expanded', !isOpen);
+}
+
+function renderFeedbackCell(a) {
+    if (a.feedback) {
+        const isAuto = a.feedback.comment && a.feedback.comment.startsWith('系统自动验证');
+        const tooltip = a.feedback.comment ? ` title="${escapeHtml(a.feedback.comment)}"` : '';
+        const label = isAuto ? '自动' : '';
+        if (a.feedback.is_accurate) {
+            return `<span class="feedback-result feedback-accurate"${tooltip}>✓ 准确${label ? '<span class="feedback-auto-tag">' + label + '</span>' : ''}</span>`;
+        } else {
+            return `<span class="feedback-result feedback-inaccurate"${tooltip}>✗ 不准确${label ? '<span class="feedback-auto-tag">' + label + '</span>' : ''}</span>`;
+        }
+    }
+    return `<span class="row-feedback-actions" id="fb-${a.id}">
+        <button class="btn-row-feedback btn-row-accurate" onclick="submitRowFeedback('${a.id}', true, this)" title="标记为准确">✓</button>
+        <button class="btn-row-feedback btn-row-inaccurate" onclick="submitRowFeedback('${a.id}', false, this)" title="标记为不准确">✗</button>
+    </span>`;
+}
+
+async function submitRowFeedback(analysisId, isAccurate, btn) {
+    const container = btn.closest('.row-feedback-actions');
+    if (!container) return;
+
+    // 禁用按钮防止重复点击
+    container.querySelectorAll('button').forEach(b => b.disabled = true);
+
+    try {
+        const resp = await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ analysis_id: analysisId, is_accurate: isAccurate }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            container.innerHTML = isAccurate
+                ? '<span class="feedback-result feedback-accurate">✓ 准确</span>'
+                : '<span class="feedback-result feedback-inaccurate">✗ 不准确</span>';
+        } else {
+            container.querySelectorAll('button').forEach(b => b.disabled = false);
+        }
+    } catch (e) {
+        console.error('提交行内反馈失败:', e);
+        container.querySelectorAll('button').forEach(b => b.disabled = false);
+    }
+}
+
 async function loadNotifications() {
     try {
         const resp = await fetch('/api/analysis?hours=24&limit=10');
@@ -546,7 +603,7 @@ async function loadNotifications() {
         }
 
         tbody.innerHTML = data.data.list.map(a => `
-            <tr>
+            <tr class="analysis-row" onclick="toggleAnalysisDetail(this)">
                 <td>${a.created_at ? formatTime(new Date(a.created_at)) : '--'}</td>
                 <td><span class="tag tag-${a.direction}">${DIRECTION_MAP[a.direction] || a.direction}</span></td>
                 <td>
@@ -558,7 +615,16 @@ async function loadNotifications() {
                 </td>
                 <td><span class="tag category">${CATEGORY_MAP[a.event_category] || a.event_category}</span></td>
                 <td><span class="tag tag-${a.suggested_action}">${ACTION_MAP[a.suggested_action] || a.suggested_action}</span></td>
-                <td>${a.feedback ? (a.feedback.is_accurate ? '<span style="color:var(--color-success)">✓ 准确</span>' : '<span style="color:var(--color-danger)">✗ 不准确</span>') : '<span style="color:var(--text-muted)">待反馈</span>'}</td>
+                <td>${renderFeedbackCell(a)}</td>
+            </tr>
+            <tr class="analysis-detail-row" style="display:none;">
+                <td colspan="6">
+                    <div class="analysis-detail">
+                        ${a.key_factors && a.key_factors.length ? `<div class="detail-section"><strong>关键因素：</strong><div class="detail-factors">${a.key_factors.map(f => `<span class="factor-tag">${escapeHtml(f)}</span>`).join('')}</div></div>` : ''}
+                        ${a.reasoning ? `<div class="detail-section"><strong>分析理由：</strong><p class="detail-reasoning">${escapeHtml(a.reasoning)}</p></div>` : ''}
+                        ${a.feedback && a.feedback.comment ? `<div class="detail-section"><strong>评审备注：</strong><p class="detail-comment">${escapeHtml(a.feedback.comment)}</p></div>` : ''}
+                    </div>
+                </td>
             </tr>
         `).join('');
     } catch (e) {

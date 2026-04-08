@@ -47,6 +47,9 @@ def create_app(
     # 启用 CORS（便于后续接入 hellocola-gateway）
     CORS(app)
 
+    # 禁用静态文件缓存，确保代码更新后浏览器立即生效
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
     # 保存依赖到 app 上下文
     app.config['db'] = db
     app.config['chroma'] = chroma

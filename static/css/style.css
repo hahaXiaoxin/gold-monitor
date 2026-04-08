@@ -765,6 +765,79 @@ body {
     color: var(--text-muted);
 }
 
+/* 行内反馈按钮 */
+.row-feedback-actions {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.btn-row-feedback {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1.5px solid;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+}
+
+.btn-row-accurate {
+    border-color: var(--color-success);
+    color: var(--color-success);
+}
+
+.btn-row-accurate:hover {
+    background: var(--color-success);
+    color: white;
+}
+
+.btn-row-inaccurate {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+.btn-row-inaccurate:hover {
+    background: var(--color-danger);
+    color: white;
+}
+
+.btn-row-feedback:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.feedback-result {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.feedback-accurate {
+    color: var(--color-success);
+}
+
+.feedback-inaccurate {
+    color: var(--color-danger);
+}
+
+.feedback-auto-tag {
+    display: inline-block;
+    font-size: 10px;
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 4px;
+    font-weight: 400;
+    vertical-align: middle;
+}
+
 /* ============================
    数据表格
    ============================ */
@@ -828,6 +901,67 @@ body {
 
 .data-table tbody tr:hover {
     background: rgba(212, 168, 67, 0.04);
+}
+
+/* 可点击的分析记录行 */
+.analysis-row {
+    cursor: pointer;
+}
+
+.analysis-row.expanded {
+    background: rgba(212, 168, 67, 0.06) !important;
+}
+
+.analysis-detail-row td {
+    padding: 0 !important;
+    border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.analysis-detail {
+    padding: 16px 20px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--bg-tertiary);
+}
+
+.detail-section {
+    margin-bottom: 10px;
+}
+
+.detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.detail-section strong {
+    font-size: 12px;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 6px;
+}
+
+.detail-factors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.detail-reasoning {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.detail-comment {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    margin: 0;
+    font-style: italic;
+    background: var(--bg-primary);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--gold-primary);
 }
 
 .empty-text {
