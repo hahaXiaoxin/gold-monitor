@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}历史记录{% endblock %}
+{% block nav_history %}active{% endblock %}
+
+{% block content %}
+<!-- 日期筛选栏 -->
+<section class="filter-section">
+    <div class="card filter-card">
+        <div class="filter-row">
+            <div class="quick-filters">
+                <button class="filter-btn active" data-days="1" onclick="filterByDays(1, this)">今日</button>
+                <button class="filter-btn" data-days="7" onclick="filterByDays(7, this)">近7天</button>
+                <button class="filter-btn" data-days="30" onclick="filterByDays(30, this)">近30天</button>
+            </div>
+            <div class="date-range">
+                <input type="date" id="dateFrom" class="date-input">
+                <span class="date-sep">至</span>
+                <input type="date" id="dateTo" class="date-input">
+                <button class="btn-apply" onclick="applyDateFilter()">筛选</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 准确率统计区 -->
+<section class="stats-section">
+    <div class="stats-cards">
+        <div class="card stat-card">
+            <div class="stat-label">总体准确率</div>
+            <div class="stat-value gold" id="overallAccuracy">--</div>
+            <div class="stat-sub" id="overallCount">-/- 条反馈</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-label">近7天准确率</div>
+            <div class="stat-value" id="weekAccuracy">--</div>
+            <div class="stat-sub" id="weekCount">-/- 条反馈</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-label">利好准确率</div>
+            <div class="stat-value green" id="bullishAccuracy">--</div>
+            <div class="stat-sub">看涨预测</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-label">利空准确率</div>
+            <div class="stat-value red" id="bearishAccuracy">--</div>
+            <div class="stat-sub">看跌预测</div>
+        </div>
+    </div>
+</section>
+
+<!-- 每日总结卡片列表 -->
+<section class="summaries-section">
+    <h2 class="section-title">
+        <span class="section-icon">📊</span>
+        每日总结
+    </h2>
+    <div id="summariesContainer">
+        <div class="empty-text">加载中...</div>
+    </div>
+</section>
+
+<!-- 历史分析表格 -->
+<section class="history-table-section">
+    <h2 class="section-title">
+        <span class="section-icon">📋</span>
+        历史分析记录
+    </h2>
+    <div class="card">
+        <div class="table-container">
+            <table class="data-table sortable" id="historyTable">
+                <thead>
+                    <tr>
+                        <th data-sort="time" onclick="sortTable('time')">时间 <span class="sort-arrow">↕</span></th>
+                        <th>新闻关键词</th>
+                        <th data-sort="direction" onclick="sortTable('direction')">方向 <span class="sort-arrow">↕</span></th>
+                        <th data-sort="confidence" onclick="sortTable('confidence')">置信率 <span class="sort-arrow">↕</span></th>
+                        <th>建议</th>
+                        <th>反馈</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr><td colspan="6" class="empty-text">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 历史页面初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        loadHistoryData();
+        loadStats();
+        loadSummaries();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<!-- 实时金价卡片区 -->
+<section class="price-cards">
+    <div class="card price-card" id="priceCard">
+        <div class="card-label">当前金价 (USD/oz)</div>
+        <div class="price-value" id="currentPrice">--</div>
+        <div class="price-sub" id="priceTimestamp">加载中...</div>
+    </div>
+    <div class="card price-card" id="changeCard">
+        <div class="card-label">24小时涨跌</div>
+        <div class="change-value" id="priceChange">--</div>
+        <div class="change-percent" id="priceChangePercent">--</div>
+    </div>
+    <div class="card price-card" id="volatilityCard">
+        <div class="card-label">波动率</div>
+        <div class="volatility-value" id="volatility">--</div>
+        <div class="price-sub">24小时价格波动指标</div>
+    </div>
+</section>
+
+<!-- 关键事件卡片流 -->
+<section class="events-section">
+    <h2 class="section-title">
+        <span class="section-icon">🔥</span>
+        关键事件
+        <span class="section-badge" id="eventsCount">0</span>
+    </h2>
+    <div class="events-scroll" id="eventsContainer">
+        <div class="events-placeholder">暂无关键事件数据</div>
+    </div>
+</section>
+
+<!-- AI 分析结果区 -->
+<section class="analysis-section">
+    <h2 class="section-title">
+        <span class="section-icon">🤖</span>
+        AI 分析结果
+    </h2>
+    <div class="card analysis-card" id="analysisCard">
+        <div class="analysis-header">
+            <div class="analysis-badges">
+                <span class="badge direction-badge" id="analysisBadge">--</span>
+                <span class="badge action-badge" id="actionBadge">--</span>
+                <span class="badge impact-badge" id="impactBadge">--</span>
+                <span class="badge category-badge" id="categoryBadge">--</span>
+            </div>
+            <div class="analysis-time" id="analysisTime">--</div>
+        </div>
+        <div class="analysis-body">
+            <div class="confidence-ring-container">
+                <svg class="confidence-ring" viewBox="0 0 120 120">
+                    <circle class="ring-bg" cx="60" cy="60" r="52" />
+                    <circle class="ring-progress" id="confidenceRing" cx="60" cy="60" r="52"
+                            stroke-dasharray="326.73" stroke-dashoffset="326.73" />
+                </svg>
+                <div class="confidence-text">
+                    <span class="confidence-value" id="confidenceValue">--</span>
+                    <span class="confidence-label">置信率</span>
+                </div>
+            </div>
+            <div class="analysis-details">
+                <div class="detail-item">
+                    <span class="detail-label">🔑 关键因素</span>
+                    <div class="factors-list" id="keyFactors">--</div>
+                </div>
+                <div class="reasoning-panel">
+                    <button class="reasoning-toggle" onclick="toggleReasoning()">
+                        📝 查看分析理由 <span class="toggle-arrow" id="toggleArrow">▼</span>
+                    </button>
+                    <div class="reasoning-content" id="reasoningContent" style="display:none;">
+                        <p id="reasoningText">--</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 用户反馈 -->
+        <div class="feedback-area" id="feedbackArea" style="display:none;">
+            <span class="feedback-label">这次分析准确吗？</span>
+            <button class="btn-feedback btn-accurate" onclick="submitFeedback(true)">✓ 准确</button>
+            <button class="btn-feedback btn-inaccurate" onclick="submitFeedback(false)">✗ 不准确</button>
+            <span class="feedback-status" id="feedbackStatus"></span>
+        </div>
+    </div>
+</section>
+
+<!-- 近期通知列表 -->
+<section class="notifications-section">
+    <h2 class="section-title">
+        <span class="section-icon">📋</span>
+        近期分析记录
+    </h2>
+    <div class="card">
+        <div class="table-container">
+            <table class="data-table" id="notificationsTable">
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>方向</th>
+                        <th>置信率</th>
+                        <th>类别</th>
+                        <th>建议</th>
+                        <th>反馈</th>
+                    </tr>
+                </thead>
+                <tbody id="notificationsBody">
+                    <tr><td colspan="6" class="empty-text">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
