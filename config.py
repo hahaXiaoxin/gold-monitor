@@ -155,6 +155,57 @@ class Config:
         """Web 调试模式"""
         return self.get('web.debug', False)
 
+    # ---- hellocola-gateway 网关配置 ----
+
+    @property
+    def gateway_enabled(self) -> bool:
+        """是否启用网关注册"""
+        return self.get('gateway.enabled', False)
+
+    @property
+    def gateway_url(self) -> str:
+        """网关地址（环境变量优先）"""
+        return self.get_env('GATEWAY_URL') or self.get('gateway.url', 'http://localhost:3000')
+
+    @property
+    def gateway_domain(self) -> str:
+        """注册到网关的域名标识"""
+        return self.get('gateway.domain', 'gold-monitor.local')
+
+    @property
+    def gateway_target(self) -> str:
+        """本服务的外部可访问地址（环境变量优先）"""
+        env_target = self.get_env('GATEWAY_TARGET')
+        if env_target:
+            return env_target
+        # 默认根据 web 配置生成
+        return f"http://{self.web_host}:{self.web_port}"
+
+    @property
+    def gateway_name(self) -> str:
+        """网关中显示的服务名称"""
+        return self.get('gateway.name', 'Gold Monitor')
+
+    @property
+    def gateway_description(self) -> str:
+        """网关中显示的服务描述"""
+        return self.get('gateway.description', '黄金涨幅盯盘软件')
+
+    @property
+    def gateway_icon(self) -> str:
+        """网关中显示的服务图标"""
+        return self.get('gateway.icon', '')
+
+    @property
+    def gateway_ttl(self) -> int:
+        """网关 TTL（秒）"""
+        return self.get('gateway.ttl', 30)
+
+    @property
+    def gateway_heartbeat_interval(self) -> int:
+        """网关心跳间隔（秒）"""
+        return self.get('gateway.heartbeat_interval', 10)
+
     @property
     def log_level(self) -> str:
         """日志级别"""

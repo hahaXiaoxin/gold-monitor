@@ -68,11 +68,14 @@ def main() -> None:
 
     # 注册优雅关闭
     scheduler_instance = None
+    gateway_registry = None
 
     def graceful_shutdown(signum, frame):
         logger.info("收到关闭信号，正在优雅关闭...")
         if scheduler_instance:
             scheduler_instance.stop()
+        if gateway_registry:
+            gateway_registry.stop()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, graceful_shutdown)
@@ -89,6 +92,26 @@ def main() -> None:
         from web.app import create_app
         app = create_app(db=db, chroma=chroma, config=config)
         port = args.port or config.web_port
+
+        # 启用网关注册（需要 Web 服务运行才有意义）
+        if config.gateway_enabled:
+            from core.gateway_registry import GatewayRegistry
+            gateway_registry = GatewayRegistry(
+                gateway_url=config.gateway_url,
+                domain=config.gateway_domain,
+                target=config.gateway_target,
+                name=config.gateway_name,
+                description=config.gateway_description,
+                icon=config.gateway_icon,
+                ttl=config.gateway_ttl,
+                heartbeat_interval=config.gateway_heartbeat_interval,
+            )
+            if gateway_registry.start():
+                logger.info("已注册到 hellocola-gateway 网关 [%s]", config.gateway_url)
+            else:
+                logger.warning("网关注册失败，服务将以独立模式运行")
+                gateway_registry = None
+
         logger.info("Web 服务启动于 http://%s:%d", config.web_host, port)
         app.run(
             host=config.web_host,
